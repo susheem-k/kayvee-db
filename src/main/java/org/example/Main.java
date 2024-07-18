@@ -1,11 +1,10 @@
 package org.example;
 
-import com.github.benmanes.caffeine.cache.Caffeine;
 import org.example.engine.IndexedStorageEngine;
 import org.example.engine.StorageEngine;
 import org.example.storage.DataStore;
 import org.example.storage.LSMDataStore;
-import org.example.storage.MonoFileDataStore;
+import org.example.storage.LockableMultiFileStoreContainer;
 
 import java.io.IOException;
 import java.util.*;
@@ -13,7 +12,7 @@ import java.util.*;
 public class Main {
 
     public static void main(String[] args) throws IOException {
-        DataStore dataStore = new LSMDataStore("datadir", 10000, true);
+        DataStore dataStore = new LSMDataStore(10000, new LockableMultiFileStoreContainer("datadir", true));
         StorageEngine storageEngine = new IndexedStorageEngine(dataStore, 1000);
         long t0 = System.currentTimeMillis();
         long numRecords = 5000;

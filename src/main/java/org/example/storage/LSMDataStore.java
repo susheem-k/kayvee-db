@@ -5,61 +5,43 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedList;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class LSMDataStore implements DataStore {
 
-    private final LinkedList<MonoFileDataStore> monoFileDataStores;
     private final long perFileSizeLimit;
-    private final String dataDir;
+    private final MultiFileStoreContainer monoFileDataStores;
 
-    public LSMDataStore(final String dataDir1, long perFileSizeLimit, boolean wipeDir) throws IOException {
+    public LSMDataStore(long perFileSizeLimit, MultiFileStoreContainer monoFileDataStores) throws IOException {
         this.perFileSizeLimit = perFileSizeLimit;
-        this.dataDir = dataDir1;
-        File dataDirectory = new File(dataDir);
-        if(!dataDirectory.exists() || !dataDirectory.isDirectory()) {
-            throw new RuntimeException(dataDir + " is not a valid directory");
-        }
-        File[] files = dataDirectory.listFiles();
-        if(files.length != 0 && wipeDir) {
-            Arrays.stream(files).forEach(file -> file.delete());
-        }
-        files = new File[0];
-        Arrays.sort(files, Comparator.comparing(File::getName));
-        monoFileDataStores = new LinkedList<>();
-        if(files.length == 0) {
-            monoFileDataStores.add(new MonoFileDataStore(dataDir + "/datafile_" + System.currentTimeMillis(), true));
-        } else {
-            for(File file : files) {
-                monoFileDataStores.add(new MonoFileDataStore(file));
-            }
-        }
+        this.monoFileDataStores = monoFileDataStores;
     }
 
     @Override
     public KVFileRecord put(String key, String value) throws IOException {
-        if(monoFileDataStores.getLast().getSize() > this.perFileSizeLimit) {
-            this.monoFileDataStores.add(new MonoFileDataStore(this.dataDir + "/datafile_" + System.currentTimeMillis(), true));
+        if(this.monoFileDataStores.getDataFiles().getLast().getSize() > this.perFileSizeLimit) {
+            this.monoFileDataStores.createNew("datafile_" + System.currentTimeMillis());
         }
-        return monoFileDataStores.getLast().put(key, value);
+        return this.monoFileDataStores.getDataFiles().getLast().put(key, value);
     }
 
     @Override
     public KVFileRecord get(String key) throws IOException {
-        return monoFileDataStores.getLast().get(key);
+        return this.monoFileDataStores.getDataFiles().getLast().get(key);
     }
 
     @Override
     public boolean delete(String key) throws IOException {
-        if(monoFileDataStores.getLast().getSize() > this.perFileSizeLimit) {
-            this.monoFileDataStores.add(new MonoFileDataStore(this.dataDir + "/datafile_" + System.currentTimeMillis(), true));
+        if(this.monoFileDataStores.getDataFiles().getLast().getSize() > this.perFileSizeLimit) {
+            this.monoFileDataStores.createNew("datafile_" + System.currentTimeMillis());
         }
-        return monoFileDataStores.getLast().delete(key);
+        return this.monoFileDataStores.getDataFiles().getLast().delete(key);
     }
 
     @Override
     public long getSize() throws IOException {
         long sum = 0L;
-        for (MonoFileDataStore monoFileDataStore : this.monoFileDataStores) {
+        for (MonoFileDataStore monoFileDataStore : this.monoFileDataStores.getDataFiles()) {
             long size = monoFileDataStore.getSize();
             sum += size;
         }
